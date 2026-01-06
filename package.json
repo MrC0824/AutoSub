@@ -1,7 +1,7 @@
 {
   "name": "AutoSub",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "AutoSub 中英双语字幕生成器",
   "main": "electron.main.js",
   "homepage": "./",
@@ -81,7 +81,7 @@
       ],
       "icon": "public/favicon.ico"
     },
-    "portable": {
+	  "portable": {
       "artifactName": "${productName}_Portable.${ext}"
     },
     "nsis": {

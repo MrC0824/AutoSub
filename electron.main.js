@@ -1,5 +1,40 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
+
+// 配置数据存储路径
+function configureUserDataPath() {
+  /**
+   * 关键调整：
+   * 仅当 process.env.PORTABLE_EXECUTABLE_DIR 存在时，说明是 electron-builder 打包的便携版。
+   * 如果是安装版，该环境变量为空，程序将跳过此逻辑，自动使用默认的 Roaming 目录。
+   */
+  const portableExecutableDir = process.env.PORTABLE_EXECUTABLE_DIR;
+  
+  if (portableExecutableDir) {
+    // --- 便携版逻辑：在 .exe 同级创建 Data 文件夹 ---
+    const dataPath = path.join(portableExecutableDir, 'Data');
+
+    try {
+      if (!fs.existsSync(dataPath)) {
+        fs.mkdirSync(dataPath, { recursive: true });
+      }
+      
+      // 重定向 userData 路径
+      app.setPath('userData', dataPath);
+      console.log("便携版启动：数据存储在 exe 同级 Data 目录");
+    } catch (err) {
+      console.error("Failed to set custom data path:", err);
+    }
+  } else {
+    // --- 安装版或开发环境：不做任何操作 ---
+    // Electron 会默认存放在 C:\Users\XXXX\AppData\Roaming\[应用名]
+    console.log("普通版启动：数据存储在系统默认 Roaming 目录");
+  }
+}
+
+// 必须在应用 ready 之前尽早调用
+configureUserDataPath();
 
 let mainWindow;
 let isQuitting = false;
@@ -8,15 +43,12 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
-    minWidth: 400, // Increased to prevent layout squeezing (covers large phones/tablets)
-    minHeight: 750, // Ensure all controls and some subtitle list are visible
+    minWidth: 400,
+    minHeight: 750,
     title: "AutoSub",
-    // Set icon for window title bar and taskbar.
-    // Use path.join to correctly locate the icon.
-    // In production, resources are packed, but pointing to public/favicon.ico usually resolves correctly if included in files.
     icon: path.join(__dirname, 'public/favicon.ico'), 
     backgroundColor: '#0f172a',
-    autoHideMenuBar: true, // 隐藏菜单栏
+    autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -24,17 +56,16 @@ function createWindow() {
     }
   });
 
-  // 开发环境加载 localhost，生产环境加载打包后的 index.html
   const isDev = !app.isPackaged;
   
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
-    // mainWindow.webContents.openDevTools(); // 开发时可开启调试工具
   } else {
+    // 确保打包后能正确找到 dist 目录
     mainWindow.loadFile(path.join(__dirname, 'dist/index.html'));
   }
 
-  // 拦截关闭事件，通知渲染进程显示自定义弹窗
+  // 退出逻辑拦截
   mainWindow.on('close', (e) => {
     if (!isQuitting) {
       e.preventDefault();
@@ -47,7 +78,7 @@ function createWindow() {
   });
 }
 
-// 监听渲染进程的确认退出消息
+// 监听渲染进程退出信号
 ipcMain.on('app-close-confirm', () => {
   isQuitting = true;
   if (mainWindow) {
