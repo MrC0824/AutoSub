@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ProcessingStatus, SubtitleSegment, VideoData, SubtitleViewMode, SubtitleStyle, TranslationMode } from './types';
 import { generateSubtitles } from './services/geminiService';
@@ -26,6 +27,15 @@ const EXPORT_FORMATS = [
   { id: 'mov', label: 'MOV' },
   { id: 'mkv', label: 'MKV' },
   { id: 'avi', label: 'AVI' },
+];
+
+const PRESET_COLORS = [
+  '#FFFFFF', // White
+  '#FACC15', // Yellow (Default CN)
+  '#38BDF8', // Light Blue
+  '#4ADE80', // Green
+  '#F87171', // Red
+  '#000000', // Black
 ];
 
 export const App: React.FC = () => {
@@ -72,6 +82,10 @@ export const App: React.FC = () => {
   const [isControlPanelOpen, setIsControlPanelOpen] = useState<boolean>(false);
   const [isSubtitleListOpen, setIsSubtitleListOpen] = useState<boolean>(false);
 
+  // Color Picker State
+  const [activeColorPicker, setActiveColorPicker] = useState<'cn' | 'en' | null>(null);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+
   // Export Cache
   const cachedExportRef = useRef<{
       key: string;
@@ -94,6 +108,21 @@ export const App: React.FC = () => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const offlineVideoRef = useRef<HTMLVideoElement | null>(null);
   const exportAudioCtxRef = useRef<AudioContext | null>(null);
+
+  // Close color picker on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+        if (colorPickerRef.current && !colorPickerRef.current.contains(event.target as Node)) {
+            setActiveColorPicker(null);
+        }
+    };
+    if (activeColorPicker) {
+        document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [activeColorPicker]);
 
   const formatDuration = (seconds: number | null) => {
     if (seconds === null) return '计算中...';
@@ -704,6 +733,67 @@ export const App: React.FC = () => {
     });
   };
 
+  const renderColorPicker = (type: 'cn' | 'en') => {
+    const currentColor = type === 'cn' ? subStyle.cnColor : subStyle.enColor;
+    const isActive = activeColorPicker === type;
+    
+    return (
+        <div className="relative">
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveColorPicker(isActive ? null : type);
+                }}
+                className="w-5 h-5 rounded border border-white/20 shadow-sm hover:scale-110 transition-transform focus:outline-none focus:ring-1 focus:ring-white/50"
+                style={{ backgroundColor: currentColor }}
+                title="选择颜色"
+            />
+            
+            {isActive && (
+                <div 
+                    ref={colorPickerRef}
+                    className="absolute bottom-full right-[-60px] lg:right-0 mb-3 z-[60] w-48 bg-[#1F2937] border border-slate-700 rounded-xl shadow-2xl p-3 animate-fade-in"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="grid grid-cols-4 gap-2 mb-3">
+                        {PRESET_COLORS.map(color => (
+                            <button
+                                key={color}
+                                className={`w-8 h-8 rounded-full border transition-transform hover:scale-110 focus:outline-none ${currentColor === color ? 'border-white ring-1 ring-white' : 'border-white/10'}`}
+                                style={{ backgroundColor: color }}
+                                onClick={() => {
+                                    setSubStyle(prev => ({...prev, [type === 'cn' ? 'cnColor' : 'enColor']: color}));
+                                    setActiveColorPicker(null);
+                                }}
+                            />
+                        ))}
+                    </div>
+                    <div className="flex items-center gap-2 bg-slate-900/50 p-1.5 rounded-lg border border-white/5">
+                        <span className="text-slate-500 text-xs font-mono ml-1">#</span>
+                        <input 
+                            type="text" 
+                            value={currentColor.replace('#', '')}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                if (/^[0-9A-Fa-f]{0,6}$/.test(val)) {
+                                    // Allow typing partial hex, update only if valid 6 chars
+                                    const fullHex = val.startsWith('#') ? val : `#${val}`;
+                                    if (val.length === 6) {
+                                        setSubStyle(prev => ({...prev, [type === 'cn' ? 'cnColor' : 'enColor']: fullHex}));
+                                    }
+                                }
+                            }}
+                            maxLength={6}
+                            className="w-full bg-transparent border-none text-xs text-white font-mono focus:ring-0 p-0 uppercase focus:outline-none"
+                        />
+                        <div className="w-4 h-4 rounded-sm border border-white/10" style={{backgroundColor: currentColor}}></div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+  };
+
   // Switch to h-[100svh] for stable viewport height on mobile
   return (
     <div className="h-[100svh] bg-[#0B0F17] text-slate-200 flex flex-col font-sans overflow-hidden">
@@ -1250,10 +1340,7 @@ export const App: React.FC = () => {
                                         <span className="text-xs text-slate-400">中文</span>
                                         <span className="text-xs font-mono text-blue-400">{subStyle.cnSize}px</span>
                                     </div>
-                                    <input type="color" value={subStyle.cnColor} onChange={(e) => {
-                                        const val = e.target.value;
-                                        setSubStyle(prev => ({...prev, cnColor: val}));
-                                    }} className="h-4 w-4 rounded cursor-pointer border-0 bg-transparent p-0" />
+                                    {renderColorPicker('cn')}
                                 </div>
                                 <input 
                                     type="range" min="10" max="60" 
@@ -1271,10 +1358,7 @@ export const App: React.FC = () => {
                                         <span className="text-xs text-slate-400">英文</span>
                                         <span className="text-xs font-mono text-blue-400">{subStyle.enSize}px</span>
                                     </div>
-                                    <input type="color" value={subStyle.enColor} onChange={(e) => {
-                                        const val = e.target.value;
-                                        setSubStyle(prev => ({...prev, enColor: val}));
-                                    }} className="h-4 w-4 rounded cursor-pointer border-0 bg-transparent p-0" />
+                                    {renderColorPicker('en')}
                                 </div>
                                 <input 
                                     type="range" min="10" max="60" 

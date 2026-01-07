@@ -3,15 +3,44 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Updated CSP to allow CDNs for React, Tailwind, Fonts, and Google APIs (including clients6 for RPC) -->
+    <!-- Updated CSP: Ensure cdn.tailwindcss.com is allowed -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://*.googleapis.com https://*.google.com https://*.gstatic.com https://aistudiocdn.com https://cdn.tailwindcss.com;">
     <title>AutoSub 中英双语字幕生成</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Tailwind CSS CDN for runtime styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
     <script>
       // Safe polyfill for process.env to prevent runtime crashes
       window.process = window.process || { env: { API_KEY: '' } };
+
+      // Hybrid Style Strategy:
+      // 1. Web Preview: Use document.write to inject Tailwind CDN synchronously.
+      // 2. Electron: Use local compiled CSS (handled by vite build).
+      (function() {
+        var isElectron = navigator.userAgent.toLowerCase().indexOf(' electron/') > -1;
+        
+        if (!isElectron) {
+          // --- Warning Suppression ---
+          try {
+            var originalWarn = console.warn;
+            console.warn = function() {
+              var args = Array.prototype.slice.call(arguments);
+              var msg = args.map(String).join(' ');
+              if (msg.indexOf('cdn.tailwindcss.com should not be used in production') !== -1) {
+                return;
+              }
+              originalWarn.apply(console, args);
+            };
+          } catch (e) {}
+
+          console.log('[StyleLoader] Web Mode: Injecting Tailwind CDN synchronously.');
+          
+          // Use document.write to ensure sequential loading in the preview environment
+          // This ensures the CDN is loaded and parsed BEFORE the body renders
+          document.write('<script src="https://cdn.tailwindcss.com"><\/script>');
+          document.write('<script>tailwind.config = { content: ["./index.html", "./**/*.{js,ts,jsx,tsx}"], theme: { extend: {} }, plugins: [] }<\/script>');
+        } else {
+          console.log('[StyleLoader] Desktop Mode: Using Local CSS');
+        }
+      })();
     </script>
 <script type="importmap">
 {
@@ -25,6 +54,7 @@
   }
 }
 </script>
+<!-- Explicitly link local CSS for Electron/Build -->
 <link rel="stylesheet" href="/index.css">
 </head>
   <body>

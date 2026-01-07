@@ -1,8 +1,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
-// CSS is loaded via Tailwind CDN in index.html to avoid build-step requirements
-// import './index.css';
+// Import local CSS. 
+// This ensures the Electron app (which skips the CDN) has styles.
+// In Web mode, this works alongside the CDN (Vite handles the import).
+import './index.css';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
