@@ -1,3 +1,4 @@
+
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -69,6 +70,15 @@ function createWindow() {
   mainWindow.on('close', (e) => {
     if (!isQuitting) {
       e.preventDefault();
+      
+      // 关键修复：当用户尝试关闭时（例如通过任务栏），确保窗口可见并聚焦
+      // 否则用户不知道为什么窗口没关（因为被拦截显示确认框了）
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      mainWindow.show(); // 确保窗口未被隐藏
+      mainWindow.focus(); // 强制获取焦点
+      
       mainWindow.webContents.send('app-close-request');
     }
   });
